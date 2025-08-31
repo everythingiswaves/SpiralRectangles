@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rectangular Spirals</title>
+  <link rel="icon" href="icono.ico" type="image/png">
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background-color: #1a1a1a;
+      color: #f0f0f0;
+    }
+    #container {
+      display: flex;
+      align-items: flex-start;
+    }
+    #canvas-holder {
+      margin: 20px;
+    }
+    #controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 20px;
+      max-width: 260px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+    input[type="color"] {
+      margin-top: 4px;
+      height: 30px;
+    }
+    input[type="number"],
+    input[type="range"] {
+      margin-top: 4px;
+    }
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    button {
+      font-size: 14px;
+      padding: 8px;
+      cursor: pointer;
+      background: #333;
+      color: #f0f0f0;
+      border: 1px solid #555;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #444;
+    }
+    #restartBtn {
+      background: #2196F3;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+    }
+    #restartBtn:hover {
+      background: #1976D2;
+    }
+
+    /* Estilo especial para los botones de modo */
+    #modeButtons {
+      display: flex;
+      gap: 6px;
+    }
+    #modeButtons button {
+      flex: 1;
+      background: #333;
+      color: #f0f0f0;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #modeButtons button:hover {
+      background: #444;
+    }
+    #modeButtons button.active {
+      background: #2196F3;
+      color: #fff;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="canvas-holder"></div>
+    <div id="controls">
+      <label>Background
+        <input type="color" id="bgColor" value="#000000">
+      </label>
+      <label>Color Palette
+        <input type="color" class="colorInput" value="#7E2F45">
+        <input type="color" class="colorInput" value="#13A3F6">
+        <input type="color" class="colorInput" value="#D3A102">
+        <input type="color" class="colorInput" value="#BF3130">
+      </label>
+      <label>Spirals
+        <input type="range" id="spiralCount" value="40" min="1" max="300">
+      </label>
+      <label>Stroke Weight
+        <input type="range" id="strokeWeightInput" min="1" max="20" value="4">
+      </label>
+      <label>Step Size
+        <input type="range" id="stepSizeInput" min="4" max="50" value="10">
+      </label>
+      <label>Size Range (%)
+        <div>
+          <input type="range" id="minLen" value="7" min="1" max="50"> 
+          to
+          <input type="range" id="maxLen" value="30" min="1" max="100">
+        </div>
+      </label>
+      <label>Padding
+        <input type="range" id="padding" value="6" min="0" max="50">
+      </label>
+      <div class="buttons">
+        
+        <div id="modeButtons">
+          <button id="lineBtn">Line by Line</button>
+          <button id="allBtn">All at Once</button>
+        </div>
+        <button id="restartBtn">Generate again</button>
+        <button id="randomizeBtn">Randomize</button>
+        <button id="saveBtn">Save PNG</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/p5/lib/p5.min.js"></script>
+  <script>
+    let cnv;
+    let boxes = [];
+    let drawQueue = [];
+    let drawIndex = 0;
+    const maxTries = 5000;
+    let drawMode = 'animated'; // "animated" = line by line, "instant" = all at once
+    let lineBtn, allBtn;
+
+    function setup() {
+      cnv = createCanvas(800, 800);
+      cnv.parent('canvas-holder');
+      frameRate(60);
+
+      select('#randomizeBtn').mousePressed(randomize);
+      select('#restartBtn').mousePressed(restart);
+      select('#saveBtn').mousePressed(savePNG);
+      select('#strokeWeightInput').input(updateStepMin);
+
+      lineBtn = select('#lineBtn');
+      allBtn = select('#allBtn');
+
+      lineBtn.mousePressed(() => setMode('animated'));
+      allBtn.mousePressed(() => setMode('instant'));
+
+      setMode(drawMode);
+      restart();
+    }
+
+    function draw() {
+      if (drawMode === 'instant' && drawIndex === 0) {
+        drawQueue.forEach(s => {
+          stroke(s.col);
+          line(s.x1, s.y1, s.x2, s.y2);
+        });
+        drawIndex = drawQueue.length;
+      }
+      if (drawMode === 'animated' && drawIndex < drawQueue.length) {
+        let s = drawQueue[drawIndex++];
+        stroke(s.col);
+        line(s.x1, s.y1, s.x2, s.y2);
+      }
+    }
+
+    function setMode(mode) {
+      drawMode = mode;
+      lineBtn.removeClass('active');
+      allBtn.removeClass('active');
+
+      if (drawMode === 'animated') {
+        lineBtn.addClass('active');
+      } else {
+        allBtn.addClass('active');
+      }
+      restart();
+    }
+
+    function restart() {
+      let bg = select('#bgColor').value();
+      let sw = int(select('#strokeWeightInput').value());
+      let step = int(select('#stepSizeInput').value());
+      if (step < sw) {
+        step = sw;
+        select('#stepSizeInput').value(step);
+      }
+      strokeWeight(sw);
+      background(bg);
+
+      boxes = [];
+      drawQueue = [];
+      drawIndex = 0;
+      packSpirals(step);
+    }
+
+    function updateStepMin() {
+      let sw = int(this.value());
+      let slider = select('#stepSizeInput').elt;
+      slider.min = sw;
+      if (int(slider.value) < sw) {
+        slider.value = sw;
+      }
+    }
+
+    function randomize() {
+
+      selectAll('.colorInput').forEach(inp => {
+        let r = floor(random(50, 255)),
+            g = floor(random(50, 255)),
+            b = floor(random(50, 255));
+        inp.value('#' + hexColor(r, g, b));
+      });
+
+      let sw = floor(random(2, 6));
+      select('#strokeWeightInput').value(sw);
+      let step = floor(random(sw+5, sw + 10));
+      select('#stepSizeInput').value(step);
+
+      select('#spiralCount').value(floor(random(20, 100)));
+      select('#minLen').value(floor(random(5, 20)));
+      select('#maxLen').value(floor(random(25, 60)));
+      select('#padding').value(floor(random(3, 10)));
+
+      restart();
+    }
+
+    function savePNG() {
+      let dataURL = cnv.elt.toDataURL('image/png');
+      let a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'spirals.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function hexColor(r, g, b) {
+      return [r, g, b]
+        .map(v => v.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    function getPalette() {
+      return selectAll('.colorInput').map(i => i.value());
+    }
+
+    function packSpirals(step) {
+      let total = int(select('#spiralCount').value());
+      let padding = int(select('#padding').value());
+      let minPct = float(select('#minLen').value()) / 100;
+      let maxPct = float(select('#maxLen').value()) / 100;
+      let palette = getPalette();
+
+      let placed = 0, tries = 0;
+      while (placed < total && tries < total * maxTries) {
+        tries++;
+        let startVert = random() < 0.5;
+        let baseLen = random(minPct * width, maxPct * width);
+        let spirals = floor(random(2, 7));
+        let cx = random(baseLen, width - baseLen);
+        let cy = random(baseLen, height - baseLen);
+
+        let { segmentsArr, bbox } = generateSpiral(
+          cx, cy, baseLen, step, spirals, startVert
+        );
+
+        let inf = {
+          xMin: bbox.xMin - padding,
+          xMax: bbox.xMax + padding,
+          yMin: bbox.yMin - padding,
+          yMax: bbox.yMax + padding
+        };
+
+        if (
+          inf.xMin >= 0 && inf.xMax <= width &&
+          inf.yMin >= 0 && inf.yMax <= height &&
+          noOverlap(inf)
+        ) {
+          let col = palette[placed % palette.length];
+          segmentsArr.forEach(s => drawQueue.push({ ...s, col }));
+          boxes.push(inf);
+          placed++;
+        }
+      }
+    }
+
+    function generateSpiral(cx, cy, baseLen, step, spirals, startVert) {
+      let x = cx, y = cy;
+      let dir = startVert ? 1 : 0;
+      let segmentsArr = [];
+      let minX = x, maxX = x, minY = y, maxY = y;
+      let totalSeg = spirals * 4;
+
+      for (let i = 0; i < totalSeg; i++) {
+        let len = (i % 2 === 0)
+                ? baseLen + (i/2)*step
+                : ((i+1)/2)*step;
+
+        if (
+          i === totalSeg-1 &&
+          ((!startVert && dir===3) || (startVert && dir===0))
+        ) {
+          len -= step;
+        }
+
+        let nx = x + (dir===0? len : dir===2? -len : 0);
+        let ny = y + (dir===3? len : dir===1? -len : 0);
+
+        segmentsArr.push({ x1: x, y1: y, x2: nx, y2: ny });
+
+        minX = min(minX, nx);
+        maxX = max(maxX, nx);
+        minY = min(minY, ny);
+        maxY = max(maxY, ny);
+
+        x = nx; y = ny;
+        dir = (dir+1)%4;
+      }
+      return {
+        segmentsArr,
+        bbox: { xMin: minX, xMax: maxX, yMin: minY, yMax: maxY }
+      };
+    }
+
+    function noOverlap(bb) {
+      return !boxes.some(o =>
+        bb.xMax >= o.xMin &&
+        bb.xMin <= o.xMax &&
+        bb.yMax >= o.yMin &&
+        bb.yMin <= o.yMax
+      );
+    }
+  </script>
+</body>
+</html>
