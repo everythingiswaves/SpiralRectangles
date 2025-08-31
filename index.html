@@ -93,6 +93,27 @@
       color: #fff;
       font-weight: bold;
     }
+
+    /* 📱 SOLO en mobile: canvas arriba, controles abajo, canvas cuadrado y ancho máximo */
+    @media (max-width: 768px) {
+      #container {
+        flex-direction: column;
+        align-items: center;
+      }
+      #canvas-holder {
+        width: 100%;
+        margin: 0;
+      }
+      canvas {
+        width: 100% !important;
+        height: auto !important;
+      }
+      #controls {
+        max-width: 100%;
+        width: 100%;
+        margin: 10px 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -117,11 +138,14 @@
       <label>Step Size
         <input type="range" id="stepSizeInput" min="4" max="50" value="10">
       </label>
-      <label>Size Range (%)
+      <label>
         <div>
+          <label>Min Size
           <input type="range" id="minLen" value="7" min="1" max="50"> 
-          to
+          </label>
+          <label>Max Size
           <input type="range" id="maxLen" value="30" min="1" max="100">
+          </label>
         </div>
       </label>
       <label>Padding
@@ -133,7 +157,7 @@
           <button id="lineBtn">Line by Line</button>
           <button id="allBtn">All at Once</button>
         </div>
-        <button id="restartBtn">Generate again</button>
+        <button id="restartBtn">Generate Again</button>
         <button id="randomizeBtn">Randomize</button>
         <button id="saveBtn">Save PNG</button>
       </div>
@@ -151,7 +175,8 @@
     let lineBtn, allBtn;
 
     function setup() {
-      cnv = createCanvas(800, 800);
+      let size = min(windowWidth - 40, 800); // 📱 canvas cuadrado y adaptable
+      cnv = createCanvas(size, size);
       cnv.parent('canvas-holder');
       frameRate(60);
 
@@ -167,6 +192,12 @@
       allBtn.mousePressed(() => setMode('instant'));
 
       setMode(drawMode);
+      restart();
+    }
+
+    function windowResized() {
+      let size = min(windowWidth - 40, 800); // 📱 siempre cuadrado
+      resizeCanvas(size, size);
       restart();
     }
 
@@ -225,7 +256,6 @@
     }
 
     function randomize() {
-
       selectAll('.colorInput').forEach(inp => {
         let r = floor(random(50, 255)),
             g = floor(random(50, 255)),
